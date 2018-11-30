@@ -1,0 +1,6 @@
+<launch>
+  <node pkg="rosbag" type="play" name="starfinder" required="true" args="/home/lzuehsow/catkin_ws/src/StarFinder/data/starfinder.bag"/>
+  <node name="extractStars" pkg="image_view" type="extract_images" respawn="false" required="true" output="screen" cwd="ROS_HOME">
+    <remap from="image" to="/camera/image_raw"/>
+  </node>
+</launch>
