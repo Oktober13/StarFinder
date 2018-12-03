@@ -10,17 +10,20 @@ from PIL import Image
 
 class Starfinder(object):
 	def __init__(self, args):
-		# np.array(Image.open(filename).convert('RGBA'))
 		images = []
-		path = os.path.join(os.getcwd(),str(args.keys()[0]))
+		path = os.path.join(os.getcwd(),str(args.items()[0]))
+
+		print path
+		if len(os.listdir(path)) == 0:
+			os.system("mv ~/.ros/frame*.jpg " + str(path))
+
 		for num in range(280):
 			length = len(str(num))
 			imagename = "frame" + "0"*(4 - length) + str(num) + ".jpg"
 			images.append(Starfinder.filterImages(imagename, path))
-		# images = [Starfinder.filterImages(image, path) for image in os.listdir(path) if image.endswith(".jpg")]
-		mask = Starfinder.longExposure(images[258::])
-		# cv2.imshow('filtered', images[0])
-		cv2.imshow('longExposure', mask)
+		# mask = Starfinder.longExposure(images[258::])
+		cv2.imshow('filtered', images[0])
+		# cv2.imshow('longExposure', mask)
 		cv2.waitKey(0)
 		cv2.destroyAllWindows()
 
@@ -62,7 +65,6 @@ if __name__ == '__main__':
 	ap = argparse.ArgumentParser()
 	ap.add_argument("-d", "--data", required=True, help="path to the data folder")
 	args = vars(ap.parse_args())
-
-	# os.system("roslaunch ")
+	print args
 
 	sf = Starfinder(args)
