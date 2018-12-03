@@ -11,9 +11,8 @@ from PIL import Image
 class Starfinder(object):
 	def __init__(self, args):
 		images = []
-		path = os.path.join(os.getcwd(),str(args.items()[0]))
+		path = os.path.join(os.getcwd(),str(list(args.items()[0])[1]))
 
-		print path
 		if len(os.listdir(path)) == 0:
 			os.system("mv ~/.ros/frame*.jpg " + str(path))
 
