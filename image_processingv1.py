@@ -57,16 +57,16 @@ def Find_Features(im):
         feature_vec[3]=d[3]
         feature_vec[4]=d[4]
         for r in d:
-            if r <= 25:
+            if r <= 50:
                 feature_vec[6]+=1
                 #feature_vec[1]+=1
                 #feature_vec[2]+=1
                 #feature_vec[3]+=1
-            elif r <= 50:
+            elif r <= 100:
                 feature_vec[7]+=1
                 #feature_vec[2]+=1
                 #feature_vec[3]+=1
-            elif r <= 100:
+            elif r <= 200:
                 feature_vec[8]+=1
                 #feature_vec[3]+=1
             #elif r <= 200:
@@ -115,10 +115,10 @@ def find_location(img1, img2):
 
     img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
-    MIN_MATCH_COUNT = 4
+    MIN_MATCH_COUNT = 3
 
     FLANN_INDEX_KDTREE = 0
-    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 10)
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
     search_params = dict(checks = 500)
 
 
@@ -130,25 +130,21 @@ def find_location(img1, img2):
 
     good = []
     for m,n in matches:
-        if m.distance < 0.95*n.distance:
+        if m.distance < 0.6*n.distance:
             good.append(m)
     if len(good)>MIN_MATCH_COUNT:
         src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
         dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-        #print (src_pts)
-        #print (dst_pts)
+
         M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
         matchesMask = mask.ravel().tolist()
 
         h,w = img1.shape
         pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
         dst = cv2.perspectiveTransform(pts,M)
-        #print(dst)
+
         img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
-        #print(pts)
-        for i in dst_pts:
-            for n in i:
-                print(n)
+
     else:
         print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
         matchesMask = None
@@ -193,8 +189,7 @@ def find_location(img1, img2):
 random_image_subsection("longExposure.png")
 #trying to stitch two ims together
 s_1 = cv2.imread("x0_y0_t0.png")
-#print(s_1.shape)
+print(s_1.shape)
 s_2 = cv2.imread("x_2_y_0_t_0.png")
-s_3 = cv2.imread("x_2_y_-3_t_0.png")
 test_1 = cv2.imread("testseg.png")
 find_location(s_1, s_2)
