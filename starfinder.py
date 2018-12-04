@@ -14,9 +14,10 @@ class Starfinder(object):
 		path = os.path.join(os.getcwd(),str(list(args.items()[0])[1]))
 
 		if len(os.listdir(path)) == 0:
+			print "Hoi"
 			os.system("mv ~/.ros/frame*.jpg " + str(path))
 
-		for num in range(280):
+		for num in range(len(os.listdir(path))):
 			length = len(str(num))
 			imagename = "frame" + "0"*(4 - length) + str(num) + ".jpg"
 			images.append(Starfinder.filterImages(imagename, path))
