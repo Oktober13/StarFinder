@@ -5,9 +5,18 @@ from os import path
 import cv2 as cv2
 import numpy as np
 import math
+import random
 from matplotlib import pyplot as plt
+from PIL import Image
 filepath = "/home/mj/catkin_ws/src/StarFinder/longExposure.png"
 image = cv2.imread(filepath)
+
+def random_image_subsection(im_filepath):
+    """takes a random subsection of my sample image so I can do some testing on image lineing upself."""
+    im = Image.open(im_filepath)
+    im2 = im.rotate(random.randint(0,359))
+    im3 = im2.crop((((im2.height-200)/2),((im2.width-200)/2),im2.height-((im2.height-200)/2),im2.width-((im2.width-200)/2)))
+    im3.save("testseg.png")
 
 def Find_Features(im):
     """This function takes a long exposure image of the star ceiling and finds the feature vectors asssociated with it. """
@@ -65,12 +74,17 @@ def Find_Features(im):
         for s in d[0:10]:
             feature_vec[5]+=s
         feature_vec[5] = feature_vec[5]/10
+        feature_dict[z] = np.asarray(feature_vec)
         vec_lists.append(np.asarray(feature_vec))
-        feature_dict[z] = feature_vec
-
+    fin_kp = []
+    fin_feat=[]
+    for i in feature_dict:
+        fin_kp.append(cv2.KeyPoint(i[0],i[1],0))
+        fin_feat.append(feature_dict[i])
+    return fin_kp,fin_feat
     #similarity testing. Using cosign distintances between feature vectors to make sure they are unique enough
     """
-    sims = []
+    sims = []"/home/mj/catkin_ws/src/StarFinder/l
     used_pairs = []
     for v1 in vec_lists:
         v1_l = v1.tolist()
@@ -86,5 +100,89 @@ def Find_Features(im):
     print(stat.variance(sims))
     #print(vec_lists)
     """
+
+def find_location(img1, img2):
+    """Trying this with Orb feature recognition- followed tutorial at link below (copied code too)
+
+    """
+    Max_features = 500
+    GOOD_MATCH =.15
+    #im1_features = Find_Features(im1)
+    #im2_features = Find_Features(im2)
+    s_kp, s_feat = Find_Features(img1)
+    m_kp, m_feat = Find_Features(img2)
+
+    MIN_MATCH_COUNT = 10
+
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+    search_params = dict(checks = 50)
+
+    #flann = cv2.FlannBasedMatcher(index_params, search_params)
+    #matches = flann.knnMatch(s_feat,m_feat,k=2)
+
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(s_feat,m_feat,k=2)
+
+
+    good = []
+    for m,n in matches:
+        if m.distance < 0.7*n.distance:
+            good.append(m)
+    if len(good)>MIN_MATCH_COUNT:
+        src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+
+        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
+        matchesMask = mask.ravel().tolist()
+
+        h,w = img1.shape
+        pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+        dst = cv2.perspectiveTransform(pts,M)
+
+        img2 = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
+
+    else:
+        print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
+        matchesMask = None
+    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                   singlePointColor = None,
+                   matchesMask = matchesMask, # draw only inliers
+                   flags = 2)
+
+    img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
+
+    plt.imshow(img3, 'gray'),plt.show()
+    # Cosine distances.
+    #sims = {}
+    #used_pairs = []
+    """for ad in im1_features[0]:
+        nesty_list =[]
+        v1 = im1_features[0][ad]
+        used_pairs.append((ad,ad))
+        for ab in im2_features[0]:
+            if (ab,ad) not in used_pairs:
+                v2 = im2_features[0][ab]
+                nesty_list.append((ab,np.dot(v1,v2)/ (np.sqrt(np.dot(v1,v1))*np.sqrt(np.dot(v2,v2)))))
+                used_pairs.append((ad,ab))
+        sims[ad]=(nesty_list.sort(key=lambda x: x[1],reverse=true))
+    # now I have a dictionary of the closeness of every point's feature map to any other feature map sorted by
+    # i want to assign my feature points to other feature points maximizing the overall match minimizing the difference between the distances of new center_points
+    # I should have used classes. ahhhhhh!
+    #get two things to match
+    """
+
+
+
+
+
+
+
+
+
+
 #Main loop
-Find_Features(image)
+#Find_Features(image)
+random_image_subsection("longExposure.png")
+test_1 = cv2.imread("testseg.png")
+find_location(test_1, image)
