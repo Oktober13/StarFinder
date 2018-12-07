@@ -74,14 +74,16 @@ def Find_Features(im):
         for s in d[0:10]:
             feature_vec[5]+=s
         feature_vec[5] = feature_vec[5]/10
-        feature_dict[z] = feature_vec
+        feature_dict[z] = np.asarray(feature_vec)
         vec_lists.append(np.asarray(feature_vec))
     fin_kp = []
     fin_feat=[]
     for i in feature_dict:
-        fin_kp.append(cv2.KeyPoint(i[0],i[1],0))
+        #fin_kp.append(cv2.KeyPoint(i[0],i[1],0))
+        #fin_feat.append(feature_dict[i])
+        fin_kp.append(i)
         fin_feat.append(feature_dict[i])
-    return fin_kp,np.asarray(fin_feat,np.float32)
+    return fin_kp,feature_dict#np.asarray(fin_feat,np.float32)
     #similarity testing. Using cosign distintances between feature vectors to make sure they are unique enough
     """
     sims = []"/home/mj/catkin_ws/src/StarFinder/l
@@ -113,7 +115,7 @@ def find_location(img1, img2):
     s_kp, s_feat = Find_Features(img1)
     m_kp, m_feat = Find_Features(img2)
 
-    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
+    """img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
     MIN_MATCH_COUNT = 3
 
@@ -155,11 +157,11 @@ def find_location(img1, img2):
 
     img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
 
-    plt.imshow(img3, 'gray'),plt.show()
+    plt.imshow(img3, 'gray'),plt.show()"""
     # Cosine distances.
     #sims = {}
     #used_pairs = []
-    """for ad in im1_features[0]:
+    for ad in im1_features[0]:
         nesty_list =[]
         v1 = im1_features[0][ad]
         used_pairs.append((ad,ad))
@@ -173,7 +175,7 @@ def find_location(img1, img2):
     # i want to assign my feature points to other feature points maximizing the overall match minimizing the difference between the distances of new center_points
     # I should have used classes. ahhhhhh!
     #get two things to match
-    """
+
 
 
 
