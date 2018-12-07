@@ -50,6 +50,9 @@ def Find_Features(im,save_im=0):
 
     feature_dict = {}
     vec_lists = []
+    check_vec_min=[]
+    check_vec_max = []
+    chec_vec_avg = []
     for z in dist_dict:
         #feature_vec = num stars in... [50,100,200] px and the end is the average dist to the closest 10 stars
         feature_vec = [0,0,0,0,0,0,0,0,0,0,0,0]
@@ -116,128 +119,142 @@ def Find_Features(im,save_im=0):
     #print(vec_lists)
     """
 
-def find_location(img1, img2,c=0):
-    """Trying this with Orb feature recognition- followed tutorial at link below (copied code too)
 
+
+def find_location(img1, img2,c=0,name="",proj_method="partial_affine"):
+    """Stitches the two images together.
     """
 
-    Max_features = 500
-    GOOD_MATCH =.15
-    #im1_features = Find_Features(im1)
-    #im2_features = Find_Features(im2)
+    #processing the imagees, finding the key points and centers of all the stars
     s_kp, s_feat,cp_1 = Find_Features(img1)
     m_kp, m_feat,cp_2 = Find_Features(img2)
 
-    img1 = cv2.cvtColor(img1,cv2.COLOR_BGR2GRAY)
-    img2 = cv2.cvtColor(img2,cv2.COLOR_BGR2GRAY)
+    #minimum number of matches to be considered a good match
     MIN_MATCH_COUNT = 4
 
+    CLOSE_VAL = 7 # number of pixles considered "close"
+
+    #KNN FEATURE VECTOR MATING.
     FLANN_INDEX_KDTREE = 0
     index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 30)
     search_params = dict(checks = 1000)
-
-
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     matches = flann.knnMatch(s_feat,m_feat,k=2)
 
-    #bf = cv2.BFMatcher()
-    #matches = bf.knnMatch(s_feat,m_feat,k=2)
-
+    #MATCH FILTERING
     good = []
     for m,n in matches:
         if m.distance < 0.55*n.distance:
             good.append(m)
-        #print(m,n)
-    print(len(good))
-    if len(good)>MIN_MATCH_COUNT:
-        src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
-        #print(src_pts)
-        dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-        #print (src_pts)
-        #print (dst_pts)
-        #M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
-        M2, mask2 = cv2.estimateAffinePartial2D(src_pts,dst_pts)
+    print(len(good)) #lets me know how good its doing...
 
-        M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
-        M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
-        #(M2_a)
+    #if we have enough matches....
+    if len(good)>=MIN_MATCH_COUNT:
+
+        #translating from kp indicies into coordinates
+        src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+
+        #ability to control if i am using 3d mapping or not
+        if proj_method == "partial_affine":
+            M2,mask2 = cv2.estimateAffinePartial2D(src_pts,dst_pts)
+            M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
+            M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
+        elif proj_method == "affine":
+            M2, mask2 = cv2.estimateAffine2D(src_pts,dst_pts)
+            M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
+            M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
+        elif proj_method == "Homography":
+            M2, mask2 = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
+
+
+        #FINDING BOUNDS OF NEW IMAGE
+
         matchesMask = mask2.ravel().tolist()
-        #print(matchesMask)
-        #print(type(M))
-        h,w = img1.shape
+        h,w = img1.shape[0:2]
+
         pts = np.float32([ [0,0],[0,h],[w,h],[w,0] ]).reshape(-1,1,2)
-        #M = np.array(M)
-        #print(pts[0])
-        #dst = cv2.perspectiveTransform(pts,M)
-        dst = pts
-        for p in dst:
-            p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
+
+        #transforming the edges of the images and making sure we are not shrinking it too much
+        if proj_method in ["partial_affine","affine"]:
+            dst = pts
+            for p in dst:
+                p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
+        else:
+            dst = cv2.perspectiveTransform(pts,M)
         nh1 = math.sqrt(((dst[0][0][0]-dst[1][0][0])**2)+((dst[0][0][1]-dst[1][0][1])**2))
         nh2 = math.sqrt(((dst[1][0][0]-dst[2][0][0])**2)+((dst[1][0][1]-dst[2][0][1])**2))
         nh3 = math.sqrt(((dst[2][0][0]-dst[3][0][0])**2)+((dst[2][0][1]-dst[3][0][1])**2))
         nh4 =math.sqrt(((dst[3][0][0]-dst[0][0][0])**2)+((dst[3][0][1]-dst[0][0][1])**2))
-        #print((nh1,nh2,nh3,nh4))
-        #print(M2_m)
-        #print (nh1/nh2)
+
         if (nh2/w) <= 0.9 or (nh2/w) >= 1.1:
-            print("error shrinking the photo to fit")
-        #print(nh2/w)
-        #print(nh1/h)
-        img2 = cv2.polylines(img2,[np.int32(dst)],True,255,1, cv2.LINE_AA)
+            print("WARNING shrinking the photo to fit") #warning in case it shrinks it too much to fit
+        #new image's height
+        new_h = max(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))-min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))
+        #new_image's width
+        new_w = max(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))-min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))
+        #the location of the 2nd image's old origin.
+        r_o = (min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w)),min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h)))
+
+        # MAPPING STAR POINTS INTO NEW IMAGE COORDINATE SPACE
+        #making an empty image to fill for our final image
+        new_im =np.zeros((new_h,new_w, 3))
+        col_im = np.zeros((new_h,new_w,3))
+        o_p = [] # original_points aka stars in image 2 translated for new image
+        n_p = [] # new_poits aka stars in image 1
+        for pt in cp_2: # mapping the original stars (im2)
+            remapped_pt = (int(pt[1]-r_o[1]),int(pt[0]-r_o[0])) # translating the points into new image coordinate system
+            o_p.append(remapped_pt) # adding the point to the list of original points
+            if remapped_pt[0]<new_h and remapped_pt[1]< new_w: # making sure the point falls in the image
+                new_im[remapped_pt[0],remapped_pt[1]]=[255,255,255]
+                col_im[remapped_pt[0],remapped_pt[1]]=[0,255,0]
+
+        for ptb in cp_1: #mapping the new stars (im1)
+            if proj_method in ["partial_affine","affine"]:
+                #if the transformation is affine dot the matrix and add the vector
+                remapped_ptb = (M2_m.dot(np.asarray([[ptb[0]],[ptb[1]]])))+M2_a
+            else:
+                #transformation method is homography. just dot matrix.
+                remapped_ptb = M2.dot(np.asarray([[ptb[0]],[ptb[1]],[1.0]]))
+            #mapping new point to new image coordinate frame
+            remapped_ptb = (int(remapped_ptb[1]-r_o[1]),int(remapped_ptb[0]-r_o[0]))
+            n_p.append(remapped_ptb) # add the new star to our list of new stars
+
+            if remapped_ptb[0]<new_h and remapped_ptb[1] < new_w: # if star is in the new picture bounds...
+                col_im[remapped_ptb[0],remapped_ptb[1]]=[0,0,255]
+                new_im[remapped_ptb[0],remapped_ptb[1]]=[255,255,255]
+
+        #DELETEING THE REALLY CLOSE POINTS TO REMOVE DUPLLICATES
+        to_del = []
+        #goal: take the op and the np and if the closest point is within a certain range, keep only the original
+        for old_px in o_p:
+            for new_px in n_p:
+                dist = math.sqrt(((old_px[0]-new_px[0])**2)+((old_px[1]-new_px[1])**2))
+                if dist <= CLOSE_VAL and dist != 0:
+                    to_del.append(old_px)
+        for pts in to_del:
+            col_im[pts[0],pts[1]]= [255,0,0]
+            new_im[pts[0],pts[1]]= [0,0,0]
+        #cv2.imwrite("test_big_filt.png", filt_im)
+        cv2.imwrite(name+"fin.png", new_im)
+        if c !=0:
+            cv2.imwrite(name+"col.png", col_im)
+        return(cv2.imread(name+"fin.png"))
     else:
         print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
         matchesMask = None
-    draw_params = dict(matchColor = (0,255,0), # draw matches in green color
-                   singlePointColor = None,
-                   matchesMask = matchesMask, # draw only inliers
-                   flags = 2)
-    #print(s_kp)
-    img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
+        return img2
+
+    #code below can draw a picture make sure to uncomment im2 line if used.
+    #img2 = cv2.polylines(img2,[np.int32(dst)],True,255,1, cv2.LINE_AA)
+    #draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                   #singlePointColor = None,
+                   #matchesMask = matchesMask, # draw only inliers
+                   #flags = 2)
+    #img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
     #plt.imshow(img3, 'gray'),plt.show()
-    # Now I am going to use the image transformation corners to like replot the image on top of the other image
 
-    new_h = max(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))-min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))
-    new_w = max(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))-min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))
-    r_o = (min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w)),min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h)))
-    new_im =np.zeros((new_h,new_w, 3))
-    #plotting the map image stars in green.
-    o_p = []
-    n_p = []
-    for n in cp_2:
-        o_p.append((int(n[1]-r_o[1]),int(n[0]-r_o[0])))
 
-        if int(n[1]-r_o[1])<new_h and int(n[0]-r_o[0]) < new_w:
-            if c ==0:
-                new_im[int(n[1]-r_o[1]),int(n[0]-r_o[0])]=[255,255,255]
-            else:
-                new_im[int(n[1]-r_o[1]),int(n[0]-r_o[0])]=[0,255,0]
-    for r in cp_1:
-        #r = M2.dot(np.asarray([[r[0]],[r[1]],[1.0]]))
-        r= (M2_m.dot(np.asarray([[r[0]],[r[1]]])))+M2_a
-        n_p.append((int(r[1]-r_o[1]),int(r[0]-r_o[0])))
-        #print(r)
-        if int(r[1]-r_o[1])<new_h and int(r[0]-r_o[0]) < new_w:
-            if c !=0:
-                new_im[int(r[1]-r_o[1]),int(r[0]-r_o[0])]=[0,0,255]
-            else:
-                new_im[int(r[1]-r_o[1]),int(r[0]-r_o[0])]=[255,255,255]
-    cv2.imwrite("test_big.png", new_im)
-    to_del = []
-    #goal: take the op and the np and if the closest point is within a certain range, keep only the original
-    filt_im = new_im
-    for w in o_p:
-        for r in n_p:
-            dist = math.sqrt(((w[0]-r[0])**2)+((w[1]-r[1])**2))
-            if dist <= 7 and dist != 0:
-                to_del.append(r)
-    for r in to_del:
-        if c !=0:
-            filt_im[r[0],r[1]]= [255,0,0]
-        else:
-            filt_im[r[0],r[1]]= [0,0,0]
-    #cv2.imwrite("test_big_filt.png", filt_im)
-    cv2.imwrite("fin.png", filt_im)
-    return(cv2.imread("fin.png"))
 
 
 
@@ -258,11 +275,17 @@ s_4 = cv2.imread("x_-2_y_-3_t_0.png")#
 s_5 = cv2.imread("x_-2_y_0_t_0.png")
 s_6 = cv2.imread("x_-2_y_3_t_0.png")
 #test_1 = cv2.imread("testseg.png")
-pt1=find_location(s_1, s_2)
-pt2=find_location(s_3,s_2)
-pt3=find_location(pt1,pt2)
-pt4 =find_location(s_4,s_7)
-pt5 = find_location(s_5,s_4,c=1)
+pt1=find_location(s_1, s_2,c=1)#v_goog
+#pt1a=find_location(s_2,s_1)
+#pt1=find_location(pt1a,pt1)
+#pt2=find_location(s_3,s_2)#v_good
+#pt2a=find_location(s_2,s_3)
+#pt2=find_location(pt2,pt2a)
+#pt3=find_location(pt1,pt2) #v_good
+#pt4 =find_location(s_4,s_7) # v_good
+#pt5 = find_location(s_7,s_4)
 #pt6 = find_location(pt4,pt5)
+#pt7 = find_location(s_5,pt6,c=1)
+#pt7a=find_location(pt5,s_5,c=1)
 #pt7 = find_location(pt3,pt6) # v_good
 #pt8 = find_location(s_5,pt1,c=1)
