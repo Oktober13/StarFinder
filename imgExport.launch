@@ -1,7 +1,15 @@
 <launch>
-  <node pkg="rosbag" type="play" name="starfinder" required="true" args="/home/mj/catkin_ws/src/StarFinder/ceiling_map/x_0_y_0_t_0.bag"/>
-  <node name="extractStars" pkg="image_view" type="extract_images" respawn="false" required="true" output="screen" cwd="ROS_HOME">
-  	<param name="image_transport" value="compressed"/>
-    <remap from="image" to="/camera/image_raw"/>
-  </node>
+  <arg name="bag"/>
+  <node pkg="rosbag" type="play" name="starfinder" required="true" args="$(find StarFinder)/$(arg bag)"/>
+
+  <group ns="camera">
+    <node pkg="rosbag" type="play" name="starfinder" required="true" args="$(find StarFinder)/$(arg bag)"/>
+    <node name="extractStars" pkg="image_view" type="extract_images" respawn="false" required="true" output="screen" cwd="ROS_HOME">
+      <param name="image_transport" value="compressed"/>
+      <param name="camera_info_file" value="$(find StarFinder)/camCalib.yaml"/>
+      <remap from="image" to="/camera/image_raw"/>
+      <remap from="/camera/image_raw" to="/camera/image_rect"/>
+      <remap from="camera_info" to="/camera/camera_info"/>
+    </node>
+  </group>
 </launch>

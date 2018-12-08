@@ -8,7 +8,9 @@ import math
 import random
 from matplotlib import pyplot as plt
 from PIL import Image
-filepath = "/home/mj/catkin_ws/src/StarFinder/longExposure.png"
+import yaml
+
+filepath = "/home/mj/catkin_ws/src/StarFinder/longExposure1.png"
 image = cv2.imread(filepath)
 
 def random_image_subsection(im_filepath):

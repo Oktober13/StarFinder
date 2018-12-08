@@ -8,15 +8,20 @@ import os
 from PIL import Image
 import rospkg
 
+"""
+Need to fix time delay roslaunch
+<node pkg="StarFinder" name="longexposure" type="longexposure.py" output="screen" args="$(find StarFinder)/data">
+</node>
+"""
+
 class LongExposure(object):
 	def __init__(self):
 		images = []
 		rospack = rospkg.RosPack()
 		path = os.path.join(rospack.get_path('StarFinder'), "data")
 
-		if len(os.listdir(path)) == 0:
-			print "Hoi"
-			os.system("mv ~/.ros/frame*.jpg " + str(path))
+		os.system("rm -rf " + str(path) + "*.png")
+		os.system("mv ~/.ros/frame*.jpg " + str(path))
 
 		for num in range(len(os.listdir(path))):
 			length = len(str(num))
@@ -25,6 +30,8 @@ class LongExposure(object):
 		# cv2.imshow('filtered', images[0])
 		# cv2.waitKey(0)
 		# cv2.destroyAllWindows()
+		print "Saved long exposure image!"
+		cv2.imwrite(os.path.join(rospack.get_path('StarFinder'),'le_x-2y-3t0.jpg'),LongExposure.longExposure(images))
 
 	@staticmethod
 	def filterImages(image, path):
