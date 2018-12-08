@@ -46,7 +46,8 @@ def get_center(im, save_im):
 def find_features(im,save_im=0):
     """This function takes a long exposure image of the star ceiling and finds the feature vectors asssociated with it. """
     center_points = get_center(im, save_im)
-
+    feat_weights = [2,1,1,1,1,1,1,1,1,1,100,100]
+    #feat_weights = [1,1,1,1,1,1,1,1,1,1,1,1]
     dist_dict = {}
     #finding the star histagrams
     #i think you need to do angles
@@ -61,9 +62,6 @@ def find_features(im,save_im=0):
 
     feature_dict = {}
     vec_lists = []
-    check_vec_min=[]
-    check_vec_max = []
-    chec_vec_avg = []
 
     for z in dist_dict:
         #feature_vec = num stars in... [50,100,200] px and the end is the average dist to the closest 10 stars
@@ -73,10 +71,8 @@ def find_features(im,save_im=0):
         # angle between closest2
 
         v = []
-
         for i in range(0,4):
             v.append(np.array([d[i][0][0]-z[0],d[i][0][1]-z[1]]))
-
         feature_vec[10] = np.dot(v[1],v[2])/ (sdot(v,1)*sdot(v,2))
         feature_vec[11]=np.dot(v[1],v[3])/ (sdot(v,1)*sdot(v,3))
         #angle between 2nd closest and 3rd closest
@@ -106,6 +102,8 @@ def find_features(im,save_im=0):
         for s in d[0:10]:
             feature_vec[5]+=s[1]
         feature_vec[5] = feature_vec[5]/10
+        for i in range(0,len(feature_vec)):
+            feature_vec[i] = feature_vec[i]*feat_weights[i]
         feature_dict[z] = feature_vec
         vec_lists.append(np.asarray(feature_vec))
     fin_kp = []
@@ -113,6 +111,7 @@ def find_features(im,save_im=0):
     for i in feature_dict:
         fin_kp.append(cv2.KeyPoint(i[0],i[1],0))
         fin_feat.append(feature_dict[i])
+
     return fin_kp,np.asarray(fin_feat,np.float32),center_points
     #similarity testing. Using cosign distintances between feature vectors to make sure they are unique enough
     """
@@ -138,7 +137,7 @@ class Feature_Matcher(object):
 
     @staticmethod
     def knn_vec_mating(s_feat, m_feat):
-        """ 
+        """
         Finds features and uses FLANN to match them.
         """
         FLANN_INDEX_KDTREE = 0
@@ -174,7 +173,7 @@ class Feature_Matcher(object):
             dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
             M2, matchesMask = self.find_homography(src_pts, dst_pts)
             col_im, new_im = self.find_map_match(img1, img2, M2, (cp_1, cp_2))
-            
+
             #cv2.imwrite("test_big_filt.png", filt_im)
             cv2.imwrite(name+"fin.png", new_im)
             if c !=0:
@@ -223,7 +222,7 @@ class Feature_Matcher(object):
             for p in dst:
                 p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
         else:
-            dst = cv2.perspectiveTransform(pts,M)
+            dst = cv2.perspectiveTransform(pts,M2)
 
         nh1 = math.sqrt(((dst[0][0][0]-dst[1][0][0])**2)+((dst[0][0][1]-dst[1][0][1])**2))
         nh2 = math.sqrt(((dst[1][0][0]-dst[2][0][0])**2)+((dst[1][0][1]-dst[2][0][1])**2))
@@ -276,7 +275,7 @@ class Feature_Matcher(object):
 
         #DELETING THE REALLY CLOSE POINTS TO REMOVE DUPLICATES
         to_del = []
-        CLOSE_VAL = 7 # number of pixels considered "close"
+        CLOSE_VAL = 11 # number of pixels considered "close"
 
         #goal: take the op and the np and if the closest point is within a certain range, keep only the original
         for old_px in o_p:
@@ -305,17 +304,25 @@ if __name__ == '__main__':
         s.append(cv2.imread(path + pics[i] + ".jpg"))
 
     fm = Feature_Matcher()
-
+    #fm.proj_method="affine"
     #test_1 = cv2.imread("testseg.png")
-    pt1=fm.find_location(s[0], s[1],c=1)#v_goog
-    #pt1a=find_location(s_2,s_1)
-    #pt1=find_location(pt1a,pt1)
-    #pt2=find_location(s_3,s_2)#v_good
-    #pt2a=find_location(s_2,s_3)
-    #pt2=find_location(pt2,pt2a)
+    #0,1,2,3,4,5,6,
+    pt.append(fm.find_location(s[1], s[0]))#0
+    pt.append(fm.find_location(s[2],s[0],c=1))#1
+    pt.append(fm.find_location(pt[1],pt[0]))#2
+    pt.append(fm.find_location(s[6],s[3]))#3
+    pt.append(fm.find_location(pt[2],pt[3]))#4
+    pt.append(fm.find_location(s[5],s[0]))#5
+    pt.append(fm.find_location(pt[5],pt[4]))#6
+    pt.append(fm.find_location(s[4],pt[6]))#7
+    pt.append(fm.find_location(pt[7],s[7]))#8
+    pt.append(fm.find_location(pt[7],pt[8],c=1))
+
+
+
     #pt3=find_location(pt1,pt2) #v_good
     #pt4 =find_location(s_4,s_7) # v_good
-    #pt5 = find_location(s_7,s_4)
+    #pt5 = fm.find_location(s[6],s[3])
     #pt6 = find_location(pt4,pt5)
     #pt7 = find_location(s_5,pt6,c=1)
     #pt7a=find_location(pt5,s_5,c=1)
