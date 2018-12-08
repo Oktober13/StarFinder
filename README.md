@@ -2,7 +2,7 @@
 CompRobo Fall 2018 Final Project
 MJ McMillen and Lydia Zuehsow
 
-![starry_ceiling](longExposure.png)
+![starry_ceiling](/photos/longExposure.png)
 
 This project will use a fiber optic star field located on the ceiling of the 3W suite lounge to localize a robotic Neato
 We will capture multiple images of the 3W suite lounge’s starry ceiling, image stitch them together with an OpenCV toolbox, then use feature matching on custom descriptors to determine which position and orientation a specific view of the ceiling was taken from.
