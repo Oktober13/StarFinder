@@ -6,11 +6,12 @@ import cv2 as cv2
 import numpy as np
 import math
 import random
+import rospkg
 from matplotlib import pyplot as plt
 from PIL import Image
 import yaml
 
-filepath = "/home/mj/catkin_ws/src/StarFinder/longExposure1.png"
+filepath = "/home/lzuehsow/catkin_ws/src/StarFinder/longExposure.png"
 image = cv2.imread(filepath)
 
 def random_image_subsection(im_filepath):
@@ -20,8 +21,11 @@ def random_image_subsection(im_filepath):
     im3 = im2.crop((((im2.height-200)/2),((im2.width-200)/2),im2.height-((im2.height-200)/2),im2.width-((im2.width-200)/2)))
     im3.save("testseg.png")
 
-def Find_Features(im,save_im=0):
-    """This function takes a long exposure image of the star ceiling and finds the feature vectors asssociated with it. """
+def sdot(vec,num):
+    """ Square root of dot product """
+    return np.sqrt(np.dot(vec[num],vec[num]))
+
+def get_center(im, save_im):
     imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY) # turning the image grayscale
     ret,thresh = cv2.threshold(imgray,127,255,0)
     img2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE) #drawing the bounding contours for stars
@@ -37,6 +41,11 @@ def Find_Features(im,save_im=0):
             im[int(center[1]),int(center[0])] = [0,0,255]
     if save_im ==1:
         cv2.imwrite("test_boxes.png", im)
+    return center_points
+
+def find_features(im,save_im=0):
+    """This function takes a long exposure image of the star ceiling and finds the feature vectors asssociated with it. """
+    center_points = get_center(im, save_im)
 
     dist_dict = {}
     #finding the star histagrams
@@ -55,18 +64,21 @@ def Find_Features(im,save_im=0):
     check_vec_min=[]
     check_vec_max = []
     chec_vec_avg = []
+
     for z in dist_dict:
         #feature_vec = num stars in... [50,100,200] px and the end is the average dist to the closest 10 stars
-        feature_vec = [0,0,0,0,0,0,0,0,0,0,0,0]
+        feature_vec = [0]*12
         d = dist_dict[z]
         d.sort(key =lambda x: x[1])
         # angle between closest2
-        v1=np.array([d[0][0][0]-z[0],d[0][0][1]-z[1]])
-        v2=np.array([d[1][0][0]-z[0],d[2][0][1]-z[1]])
-        v3=np.array([d[2][0][0]-z[0],d[2][0][1]-z[1]])
-        v4=np.array([d[3][0][0]-z[0],d[3][0][1]-z[1]])
-        feature_vec[10] = np.dot(v1,v2)/ (np.sqrt(np.dot(v1,v1))*np.sqrt(np.dot(v2,v2)))
-        feature_vec[11]=np.dot(v1,v3)/ (np.sqrt(np.dot(v1,v1))*np.sqrt(np.dot(v3,v3)))
+
+        v = []
+
+        for i in range(0,4):
+            v.append(np.array([d[i][0][0]-z[0],d[i][0][1]-z[1]]))
+
+        feature_vec[10] = np.dot(v[1],v[2])/ (sdot(v,1)*sdot(v,2))
+        feature_vec[11]=np.dot(v[1],v[3])/ (sdot(v,1)*sdot(v,3))
         #angle between 2nd closest and 3rd closest
 
         feature_vec[0]= d[0][1]
@@ -74,7 +86,7 @@ def Find_Features(im,save_im=0):
         feature_vec[2]=d[2][1]
         feature_vec[3]=d[3][1]
         feature_vec[4]=d[4][1]
-        feature_vec[9]=d[5][1]
+        feature_vec[9]=d[5][1] # TODO: is feature_vec[9] right?
         #feature_vec[10]=d[6]
         for r in d:
             if r[1] <= 25:
@@ -120,90 +132,126 @@ def Find_Features(im,save_im=0):
     print(stat.variance(sims))
     #print(vec_lists)
     """
+class Feature_Matcher(object):
+    def __init__(self, proj_method="partial_affine"):
+        self.proj_method = proj_method
 
+    @staticmethod
+    def knn_vec_mating(s_feat, m_feat):
+        """ 
+        Finds features and uses FLANN to match them.
+        """
+        FLANN_INDEX_KDTREE = 0
+        index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 30)
+        search_params = dict(checks = 1000)
+        flann = cv2.FlannBasedMatcher(index_params, search_params)
+        return flann.knnMatch(s_feat,m_feat,k=2)
 
+    def find_location(self, img1, img2,c=0,name=""):
+        """Stitches the two images together.
+        """
+        MIN_MATCH_COUNT = 4 #min number of matches to be considered a good match
 
-def find_location(img1, img2,c=0,name="",proj_method="partial_affine"):
-    """Stitches the two images together.
-    """
+        #processing the images, finding the key points and centers of all the stars
+        s_kp, s_feat, cp_1 = find_features(img1)
+        m_kp, m_feat, cp_2 = find_features(img2)
 
-    #processing the imagees, finding the key points and centers of all the stars
-    s_kp, s_feat,cp_1 = Find_Features(img1)
-    m_kp, m_feat,cp_2 = Find_Features(img2)
+        #KNN FEATURE VECTOR MATING.
+        matches = Feature_Matcher.knn_vec_mating(s_feat,m_feat)
 
-    #minimum number of matches to be considered a good match
-    MIN_MATCH_COUNT = 4
+        #MATCH FILTERING
+        good = []
+        for m,n in matches:
+            if m.distance < 0.55*n.distance:
+                good.append(m)
 
-    CLOSE_VAL = 7 # number of pixles considered "close"
+        print(len(good)) #lets me know how good its doing...
 
-    #KNN FEATURE VECTOR MATING.
-    FLANN_INDEX_KDTREE = 0
-    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 30)
-    search_params = dict(checks = 1000)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(s_feat,m_feat,k=2)
+        #if we have enough matches....
+        if len(good)>=MIN_MATCH_COUNT:
+            #translating from kp indices into coordinates
+            src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+            dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+            M2, matchesMask = self.find_homography(src_pts, dst_pts)
+            col_im, new_im = self.find_map_match(img1, img2, M2, (cp_1, cp_2))
+            
+            #cv2.imwrite("test_big_filt.png", filt_im)
+            cv2.imwrite(name+"fin.png", new_im)
+            if c !=0:
+                cv2.imwrite(name+"col.png", col_im)
+            return(cv2.imread(name+"fin.png"))
+        else:
+            print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
+            matchesMask = None
+            return img2
 
-    #MATCH FILTERING
-    good = []
-    for m,n in matches:
-        if m.distance < 0.55*n.distance:
-            good.append(m)
-    print(len(good)) #lets me know how good its doing...
+        #code below can draw a picture make sure to uncomment im2 line if used.
+        #img2 = cv2.polylines(img2,[np.int32(dst)],True,255,1, cv2.LINE_AA)
+        #draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                       #singlePointColor = None,
+                       #matchesMask = matchesMask, # draw only inliers
+                       #flags = 2)
+        #img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
+        #plt.imshow(img3, 'gray'),plt.show()
 
-    #if we have enough matches....
-    if len(good)>=MIN_MATCH_COUNT:
-
-        #translating from kp indicies into coordinates
-        src_pts = np.float32([ s_kp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
-        dst_pts = np.float32([ m_kp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-
+    def find_homography(self, src_pts, dst_pts):
         #ability to control if i am using 3d mapping or not
-        if proj_method == "partial_affine":
+        if self.proj_method == "partial_affine":
             M2,mask2 = cv2.estimateAffinePartial2D(src_pts,dst_pts)
-            M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
-            M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
-        elif proj_method == "affine":
+        elif self.proj_method == "affine":
             M2, mask2 = cv2.estimateAffine2D(src_pts,dst_pts)
-            M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
-            M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
-        elif proj_method == "Homography":
+        elif self.proj_method == "Homography":
             M2, mask2 = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
 
-
         #FINDING BOUNDS OF NEW IMAGE
-
         matchesMask = mask2.ravel().tolist()
-        h,w = img1.shape[0:2]
+        return M2, matchesMask
 
+    def find_map_match(self, img1, img2, M2, cp):
+        h,w = img1.shape[0:2]
+        cp_1, cp_2 = cp
         pts = np.float32([ [0,0],[0,h],[w,h],[w,0] ]).reshape(-1,1,2)
+        nh = []
 
         #transforming the edges of the images and making sure we are not shrinking it too much
-        if proj_method in ["partial_affine","affine"]:
+        if self.proj_method in ["partial_affine","affine"]:
+
+            M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
+            M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
+
             dst = pts
             for p in dst:
                 p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
         else:
             dst = cv2.perspectiveTransform(pts,M)
+
         nh1 = math.sqrt(((dst[0][0][0]-dst[1][0][0])**2)+((dst[0][0][1]-dst[1][0][1])**2))
         nh2 = math.sqrt(((dst[1][0][0]-dst[2][0][0])**2)+((dst[1][0][1]-dst[2][0][1])**2))
         nh3 = math.sqrt(((dst[2][0][0]-dst[3][0][0])**2)+((dst[2][0][1]-dst[3][0][1])**2))
-        nh4 =math.sqrt(((dst[3][0][0]-dst[0][0][0])**2)+((dst[3][0][1]-dst[0][0][1])**2))
+        nh4 = math.sqrt(((dst[3][0][0]-dst[0][0][0])**2)+((dst[3][0][1]-dst[0][0][1])**2))
 
         if (nh2/w) <= 0.9 or (nh2/w) >= 1.1:
             print("WARNING shrinking the photo to fit") #warning in case it shrinks it too much to fit
         #new image's height
-        new_h = max(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))-min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h))
+        dst = np.array(dst).astype(int)
+
+        new_h = max(dst[0][0][1],dst[1][0][1],dst[2][0][1],dst[3][0][1],0,h) \
+            -min(dst[0][0][1],dst[1][0][1],dst[2][0][1],dst[3][0][1],0,h)
         #new_image's width
-        new_w = max(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))-min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w))
+        new_w = max(dst[0][0][0],dst[1][0][0],dst[2][0][0],dst[3][0][0],0,w) \
+            -min(dst[0][0][0],dst[1][0][0],dst[2][0][0],dst[3][0][0],0,w)
         #the location of the 2nd image's old origin.
-        r_o = (min(int(dst[0][0][0]),int(dst[1][0][0]),int(dst[2][0][0]),int(dst[3][0][0]),0,int(w)),min(int(dst[0][0][1]),int(dst[1][0][1]),int(dst[2][0][1]),int(dst[3][0][1]),0,int(h)))
+        # TODO: IS THIS SUPPOSED TO BE MIN - MIN?
+        r_o = (min(dst[0][0][0],dst[1][0][0],dst[2][0][0],dst[3][0][0],0,w),\
+            min(dst[0][0][1],dst[1][0][1],dst[2][0][1],dst[3][0][1],0,h))
 
         # MAPPING STAR POINTS INTO NEW IMAGE COORDINATE SPACE
         #making an empty image to fill for our final image
-        new_im =np.zeros((new_h,new_w, 3))
+        new_im = np.zeros((new_h,new_w, 3))
         col_im = np.zeros((new_h,new_w,3))
+
         o_p = [] # original_points aka stars in image 2 translated for new image
-        n_p = [] # new_poits aka stars in image 1
+        n_p = [] # new_points aka stars in image 1
         for pt in cp_2: # mapping the original stars (im2)
             remapped_pt = (int(pt[1]-r_o[1]),int(pt[0]-r_o[0])) # translating the points into new image coordinate system
             o_p.append(remapped_pt) # adding the point to the list of original points
@@ -212,7 +260,7 @@ def find_location(img1, img2,c=0,name="",proj_method="partial_affine"):
                 col_im[remapped_pt[0],remapped_pt[1]]=[0,255,0]
 
         for ptb in cp_1: #mapping the new stars (im1)
-            if proj_method in ["partial_affine","affine"]:
+            if self.proj_method in ["partial_affine","affine"]:
                 #if the transformation is affine dot the matrix and add the vector
                 remapped_ptb = (M2_m.dot(np.asarray([[ptb[0]],[ptb[1]]])))+M2_a
             else:
@@ -226,8 +274,10 @@ def find_location(img1, img2,c=0,name="",proj_method="partial_affine"):
                 col_im[remapped_ptb[0],remapped_ptb[1]]=[0,0,255]
                 new_im[remapped_ptb[0],remapped_ptb[1]]=[255,255,255]
 
-        #DELETEING THE REALLY CLOSE POINTS TO REMOVE DUPLLICATES
+        #DELETING THE REALLY CLOSE POINTS TO REMOVE DUPLICATES
         to_del = []
+        CLOSE_VAL = 7 # number of pixels considered "close"
+
         #goal: take the op and the np and if the closest point is within a certain range, keep only the original
         for old_px in o_p:
             for new_px in n_p:
@@ -237,57 +287,37 @@ def find_location(img1, img2,c=0,name="",proj_method="partial_affine"):
         for pts in to_del:
             col_im[pts[0],pts[1]]= [255,0,0]
             new_im[pts[0],pts[1]]= [0,0,0]
-        #cv2.imwrite("test_big_filt.png", filt_im)
-        cv2.imwrite(name+"fin.png", new_im)
-        if c !=0:
-            cv2.imwrite(name+"col.png", col_im)
-        return(cv2.imread(name+"fin.png"))
-    else:
-        print ("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
-        matchesMask = None
-        return img2
+        return col_im, new_im
 
-    #code below can draw a picture make sure to uncomment im2 line if used.
-    #img2 = cv2.polylines(img2,[np.int32(dst)],True,255,1, cv2.LINE_AA)
-    #draw_params = dict(matchColor = (0,255,0), # draw matches in green color
-                   #singlePointColor = None,
-                   #matchesMask = matchesMask, # draw only inliers
-                   #flags = 2)
-    #img3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
-    #plt.imshow(img3, 'gray'),plt.show()
+if __name__ == '__main__':
+    #Main loop
+    #Find_Features(image)
+    rospack = rospkg.RosPack()
+    path = str(os.path.join(rospack.get_path('StarFinder'), "photos/"))
 
+    random_image_subsection(path + "longExposure.png")
+    pics = ["le_x0y0t0", "le_x2y0t0", "le_x2y-3t0", "le_x-2y-3t0", "le_x-2y0t0", "le_x-2y3t0", "le_x0y-3t0", "le_x0y3t0"]
+    s = []
+    pt = []
 
+    #trying to stitch two ims together
+    for i in range(0,8):
+        s.append(cv2.imread(path + pics[i] + ".jpg"))
 
+    fm = Feature_Matcher()
 
-
-
-
-
-#Main loop
-#Find_Features(image)
-random_image_subsection("longExposure.png")
-#trying to stitch two ims together
-s_1 = cv2.imread("x0_y0_t0.png")#
-s_7 = cv2.imread("x0_y-3_t0.png")#
-s_8 = cv2.imread("x0_y3_t0.png")
-#print(s_1.shape)
-s_2 = cv2.imread("x_2_y_0_t_0.png")#
-s_3 = cv2.imread("x_2_y_-3_t_0.png")#
-s_4 = cv2.imread("x_-2_y_-3_t_0.png")#
-s_5 = cv2.imread("x_-2_y_0_t_0.png")
-s_6 = cv2.imread("x_-2_y_3_t_0.png")
-#test_1 = cv2.imread("testseg.png")
-pt1=find_location(s_1, s_2,c=1)#v_goog
-#pt1a=find_location(s_2,s_1)
-#pt1=find_location(pt1a,pt1)
-#pt2=find_location(s_3,s_2)#v_good
-#pt2a=find_location(s_2,s_3)
-#pt2=find_location(pt2,pt2a)
-#pt3=find_location(pt1,pt2) #v_good
-#pt4 =find_location(s_4,s_7) # v_good
-#pt5 = find_location(s_7,s_4)
-#pt6 = find_location(pt4,pt5)
-#pt7 = find_location(s_5,pt6,c=1)
-#pt7a=find_location(pt5,s_5,c=1)
-#pt7 = find_location(pt3,pt6) # v_good
-#pt8 = find_location(s_5,pt1,c=1)
+    #test_1 = cv2.imread("testseg.png")
+    pt1=fm.find_location(s[0], s[1],c=1)#v_goog
+    #pt1a=find_location(s_2,s_1)
+    #pt1=find_location(pt1a,pt1)
+    #pt2=find_location(s_3,s_2)#v_good
+    #pt2a=find_location(s_2,s_3)
+    #pt2=find_location(pt2,pt2a)
+    #pt3=find_location(pt1,pt2) #v_good
+    #pt4 =find_location(s_4,s_7) # v_good
+    #pt5 = find_location(s_7,s_4)
+    #pt6 = find_location(pt4,pt5)
+    #pt7 = find_location(s_5,pt6,c=1)
+    #pt7a=find_location(pt5,s_5,c=1)
+    #pt7 = find_location(pt3,pt6) # v_good
+    #pt8 = find_location(s_5,pt1,c=1)
