@@ -5,6 +5,7 @@ import cv2
 from image_processing import find_features
 from image_processing import Feature_Matcher
 from longexposure import LongExposure
+from matplotlib import pyplot as plt
 import numpy as np
 # from PIL import Image
 from sensor_msgs.msg import CompressedImage
@@ -25,6 +26,11 @@ class astraLocator(object):
 
 		if self.image_received:
 			photos = self.collectPhotos()
+			cv2.imshow('photo', photos[0])
+			cv2.waitKey(0)
+			cv2.imshow('photo', photos[1])
+			cv2.waitKey(0)
+			cv2.destroyAllWindows()
 			longExp = self.process(photos)
 			(x,y) = self.getCoords(longExp)
 			print x,y
@@ -49,10 +55,10 @@ class astraLocator(object):
 		flag = 0
 		photos = []
 
-		while (len(photos) <= 20) and (flag <= 20):
+		while (len(photos) <= 10) and (flag <= 20):
 			if self.image_received:
-				image = np.array(self.image)
-				photos.append(image)
+				# image = np.array(self.image)
+				photos.append(self.image)
 			else:
 				flag = flag + 1
 		return photos
@@ -83,6 +89,11 @@ class astraLocator(object):
 			if m.distance < 0.55*n.distance:
 				good.append(m)
 
+		# Draw first 10 matches.
+		img3 = cv2.drawMatches(img,usrKp,starmap,mapKp,good, None, flags=2)
+
+		plt.imshow(img3),plt.show()
+
 		if len(good)>=MIN_MATCH_COUNT:
 			#translating from kp indices into coordinates
 			src_pts = np.float32([ usrKp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
@@ -94,9 +105,13 @@ class astraLocator(object):
 			cv2.waitKey(1)
 			cv2.destroyAllWindows()
 
+			# Something about finding the center of the matched subpic
+			# move origin -> (x-468.5, y-373)
+			# conversion ratio x: 186.5 pixels/ft
+			# conversion ratio y: 156.16 pixels/ft
+			# Convert to feet
 			center = (0,0)
-			for i, j in matches: # Trying to average the xy pos of the matches to find the center 
-				center = (max(matches[i][j]) + min(matches[i][j])) / 2.0
+
 			return center
 
 		else:
