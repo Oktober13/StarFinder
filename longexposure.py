@@ -16,22 +16,7 @@ Need to fix time delay roslaunch
 
 class LongExposure(object):
 	def __init__(self):
-		images = []
-		rospack = rospkg.RosPack()
-		path = os.path.join(rospack.get_path('StarFinder'), "data")
-
-		os.system("rm -rf " + str(path) + "*.png")
-		os.system("mv ~/.ros/frame*.jpg " + str(path))
-
-		for num in range(len(os.listdir(path))):
-			length = len(str(num))
-			imagename = "frame" + "0"*(4 - length) + str(num) + ".jpg"
-			images.append(LongExposure.filterImages(imagename, path))
-		# cv2.imshow('filtered', images[0])
-		# cv2.waitKey(0)
-		# cv2.destroyAllWindows()
-		print "Saved long exposure image!"
-		cv2.imwrite(os.path.join(rospack.get_path('StarFinder'),'le_x-2y-3t0.jpg'),LongExposure.longExposure(images))
+		pass
 
 	@staticmethod
 	def filterImages(image, path):
@@ -53,15 +38,26 @@ class LongExposure(object):
 		return mask
 
 	@staticmethod
-	def imgToPointCloud():
-		cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
-		cnts = cnts[0] if imutils.is_cv2() else cnts[1]
-		cnts = imutils.contours.sort_contours(cnts)[0]
+	def processRosbagData():
+		images = []
+		rospack = rospkg.RosPack()
+		path = os.path.join(rospack.get_path('StarFinder'), "data")
 
-		for (i, c) in enumerate(cnts):
-			((cX, cY), radius) = cv2.minEnclosingCircle(c)
-			# Some stuff converting to point cloud?
+		os.system("rm -rf " + str(path) + "*.png")
+		os.system("mv ~/.ros/frame*.jpg " + str(path))
+
+		for num in range(len(os.listdir(path))):
+			length = len(str(num))
+			imagename = "frame" + "0"*(4 - length) + str(num) + ".jpg"
+			images.append(LongExposure.filterImages(imagename, path))
+		# cv2.imshow('filtered', images[0])
+		# cv2.waitKey(0)
+		# cv2.destroyAllWindows()
+		print "Saved long exposure image!"
+		cv2.imwrite(os.path.join(rospack.get_path('StarFinder'),'le_x-2y-3t0.jpg'),LongExposure.longExposure(images))
+		return
 
 if __name__ == '__main__':
 	# Data folder is 'ceiling_map'
 	le = LongExposure()
+	le.processRosbagData()

@@ -41,21 +41,6 @@ class Calibration(object):
 
 		# Allow up to one second to connection
 		rospy.sleep(1)
-
-		ret = False
-		flag = 0
-		maxflag = 10
-
-		for num in range(0,10):
-			while ret is not True and flag <= maxflag:
-				k = cv2.waitKey(1) & 0xFF
-				ret, corners = self.findCorners()
-				# print ret, corners
-				flag = flag + 1
-			if ret is True:
-				self.rectify()
-				# ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
-				ret = False
 		
 	def findCorners(self):
 		# termination criteria
@@ -100,7 +85,7 @@ class Calibration(object):
 		self.image_received = True
 		self.image = cv_image
 
-	def undistort(self):
+	def undistort(self, img):
 		h,  w = img.shape[:2]
 		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
 		dst = cv2.undistort(img, mtx, dist, None, newcameramtx)
@@ -108,7 +93,24 @@ class Calibration(object):
 		dst = dst[y:y+h, x:x+w]
 		return dst
 
+	def calibrate(self):
+		ret = False
+		flag = 0
+		maxflag = 10
+
+		for num in range(0,10):
+			while ret is not True and flag <= maxflag:
+				k = cv2.waitKey(1) & 0xFF
+				ret, corners = self.findCorners()
+				# print ret, corners
+				flag = flag + 1
+			if ret is True:
+				self.rectify()
+				# ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+				ret = False
+
 if __name__ == '__main__':
 	# Initialize
 	rospy.init_node('take_photo', anonymous=False)
 	cal = Calibration()
+	cal.calibrate()
