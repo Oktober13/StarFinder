@@ -33,9 +33,9 @@ class astraLocator(object):
 			print "No image received."
 
 	def compressedCallback(self, ros_data):
-		''' 
-		Callback function of subscribed topic. 
-		Taken from http://wiki.ros.org/rospy_tutorials/Tutorials/WritingImagePublisherSubscriber 
+		'''
+		Callback function of subscribed topic.
+		Taken from http://wiki.ros.org/rospy_tutorials/Tutorials/WritingImagePublisherSubscriber
 		'''
 
 		#### direct conversion to CV2 ####
@@ -69,6 +69,9 @@ class astraLocator(object):
 		cv2.destroyAllWindows()
 
 		longExp = le.longExposure(images)
+		cv2.imshow('longExposure', longExp)
+		cv2.waitKey(1)
+		cv2.destroyAllWindows()
 
 		# cv2.imshow('photo', longExp)
 		# 	cv2.waitKey(0)
@@ -77,7 +80,7 @@ class astraLocator(object):
 
 	def getCoords(self, img):
 		""" Finds the coordinates of the robot. """
-		starmap = cv2.imread('fin.png')
+		starmap = cv2.imread('big_map.png')
 		fm = Feature_Matcher()
 		MIN_MATCH_COUNT = 4
 
@@ -96,15 +99,27 @@ class astraLocator(object):
 		img3 = cv2.drawMatches(img,usrKp,starmap,mapKp,good, None, flags=2)
 
 		plt.imshow(img3),plt.show()
-
 		if len(good)>=MIN_MATCH_COUNT:
 			#translating from kp indices into coordinates
 			src_pts = np.float32([ usrKp[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
 			dst_pts = np.float32([ mapKp[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
-			M2, matchesMask = self.find_homography(src_pts, dst_pts)
-			col_im, new_im = self.find_map_match(img, starmap, M2, (usrCp, mapKp))
+			pts = np.float32([ [0,0],[0,h],[w,h],[w,0] ]).reshape(-1,1,2) # the size of our image
 
-			cv2.imshow('mask', matchesMask)
+			M2, matchesMask = self.find_homography(src_pts, dst_pts) # matches the two images up.
+			h,w = img.shape[0:2]
+
+			# since M2 is actually a rotation matrix and a translation vector packed together, we need to unpack them
+			M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
+			M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
+			dst = pts
+			for p in dst:
+				p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
+			#col_im, new_im = self.find_map_match(img, starmap, M2, (usrCp, mapKp))
+			#dst contains the points for all corners of new image overlay
+			new_c = ((dst[2][0][0]-dst[0][0][0])/2,(dst[2][0][1]-dst[0][0][1])/2)
+
+
+			cv2.imshow('mask',matchesMask)
 			cv2.waitKey(1)
 			cv2.destroyAllWindows()
 
@@ -113,7 +128,7 @@ class astraLocator(object):
 			# conversion ratio x: 186.5 pixels/ft
 			# conversion ratio y: 156.16 pixels/ft
 			# Convert to feet
-			center = (0,0)
+			center = ((new_c[0]-468.5)/186.5,(new_c[1]-468.5)/156.16)
 
 			return center
 
