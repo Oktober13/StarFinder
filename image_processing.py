@@ -175,6 +175,22 @@ class Feature_Matcher(object):
             col_im, new_im = self.find_map_match(img1, img2, M2, (cp_1, cp_2))
 
             #cv2.imwrite("test_big_filt.png", filt_im)
+            if c !=0:
+                h,w = img1.shape[0:2]
+                pts = np.float32([ [0,0],[0,h],[w,h],[w,0] ]).reshape(-1,1,2)
+                M2_m = np.array([(M2.tolist()[0][0:2]),(M2.tolist()[1][0:2])])
+                M2_a = np.array([[(M2.tolist()[0][2])],[(M2.tolist()[1][2])]])
+                dst = pts
+                for p in dst:
+                    p[0] = np.transpose(M2_m.dot(np.asarray([[p[0][0]],[p[0][1]]]))+M2_a)
+                linim = cv2.polylines(img2,[np.int32(dst)],True,255,3, cv2.LINE_AA)
+                draw_params = dict(matchColor = (0,255,0), # draw matches in green color
+                singlePointColor = None,
+                matchesMask = matchesMask, # draw only inliers
+                flags = 2)
+                im3 = cv2.drawMatches(img1,s_kp,img2,m_kp,good,None,**draw_params)
+                cv2.imwrite("lines.png",im3)
+
             cv2.imwrite(name+"fin.png", new_im)
             if c !=0:
                 cv2.imwrite(name+"col.png", col_im)
@@ -308,7 +324,7 @@ if __name__ == '__main__':
     #test_1 = cv2.imread("testseg.png")
     #0,1,2,3,4,5,6,
     pt.append(fm.find_location(s[1], s[0]))#0
-    pt.append(fm.find_location(s[2],s[0],c=1))#1
+    pt.append(fm.find_location(s[2],s[0]))#1
     pt.append(fm.find_location(pt[1],pt[0]))#2
     pt.append(fm.find_location(s[6],s[3]))#3
     pt.append(fm.find_location(pt[2],pt[3]))#4
@@ -316,7 +332,9 @@ if __name__ == '__main__':
     pt.append(fm.find_location(pt[5],pt[4]))#6
     pt.append(fm.find_location(s[4],pt[6]))#7
     pt.append(fm.find_location(pt[7],s[7]))#8
-    pt.append(fm.find_location(pt[7],pt[8],c=1))
+    pt.append(fm.find_location(pt[7],pt[8]))
+
+    fm.find_location(s[1],pt[9],c=1)
 
 
 
