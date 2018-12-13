@@ -26,11 +26,6 @@ class astraLocator(object):
 
 		if self.image_received:
 			photos = self.collectPhotos()
-			cv2.imshow('photo', photos[0])
-			cv2.waitKey(0)
-			cv2.imshow('photo', photos[1])
-			cv2.waitKey(0)
-			cv2.destroyAllWindows()
 			longExp = self.process(photos)
 			(x,y) = self.getCoords(longExp)
 			print x,y
@@ -45,7 +40,7 @@ class astraLocator(object):
 
 		#### direct conversion to CV2 ####
 		np_arr = np.fromstring(ros_data.data, np.uint8)
-		image_np = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+		image_np = cv2.imdecode(np_arr, 1)
 
 		self.image_received = True
 		self.image = image_np
@@ -69,7 +64,15 @@ class astraLocator(object):
 		for image in images:
 			image = le.lightFilter(image)
 
+		cv2.imshow('photo', images[0])
+		cv2.waitKey(0)
+		cv2.destroyAllWindows()
+
 		longExp = le.longExposure(images)
+
+		# cv2.imshow('photo', longExp)
+		# 	cv2.waitKey(0)
+		# 	cv2.destroyAllWindows()
 		return longExp
 
 	def getCoords(self, img):
