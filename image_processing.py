@@ -19,16 +19,15 @@ def random_image_subsection(im_filepath):
     im = Image.open(im_filepath)
     im2 = im.rotate(random.randint(0,359))
     im3 = im2.crop((((im2.height-200)/2),((im2.width-200)/2),im2.height-((im2.height-200)/2),im2.width-((im2.width-200)/2)))
-    im3.save("testseg.png")
+    return im3
+    # im3.save("testseg.png")
 
 def sdot(vec,num):
     """ Square root of dot product """
     return np.sqrt(np.dot(vec[num],vec[num]))
 
 def get_center(im, save_im):
-    imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY) # turning the image grayscale
-    ret,thresh = cv2.threshold(imgray,127,255,0)
-    img2, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE) #drawing the bounding contours for stars
+    img2, contours, hierarchy = cv2.findContours(im,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE) #drawing the bounding contours for stars
 
     center_points = []
     radi = []
@@ -42,6 +41,11 @@ def get_center(im, save_im):
     if save_im ==1:
         cv2.imwrite("test_boxes.png", im)
     return center_points
+
+def threshold(im):
+    imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY) # turning the image grayscale
+    ret,thresh = cv2.threshold(imgray,127,255,0)
+    return thresh
 
 def find_features(im,save_im=0):
     """This function takes a long exposure image of the star ceiling and finds the feature vectors asssociated with it. """
@@ -152,8 +156,8 @@ class Feature_Matcher(object):
         MIN_MATCH_COUNT = 4 #min number of matches to be considered a good match
 
         #processing the images, finding the key points and centers of all the stars
-        s_kp, s_feat, cp_1 = find_features(img1)
-        m_kp, m_feat, cp_2 = find_features(img2)
+        s_kp, s_feat, cp_1 = find_features(threshold(img1))
+        m_kp, m_feat, cp_2 = find_features(threshold(img2))
 
         #KNN FEATURE VECTOR MATING.
         matches = Feature_Matcher.knn_vec_mating(s_feat,m_feat)

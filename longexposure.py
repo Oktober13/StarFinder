@@ -38,7 +38,7 @@ class LongExposure(object):
 		return mask
 
 	@staticmethod
-	def processRosbagData():
+	def processRosbagData(name = 'le_x-2y-3t0'):
 		images = []
 		rospack = rospkg.RosPack()
 		path = os.path.join(rospack.get_path('StarFinder'), "data")
@@ -53,9 +53,10 @@ class LongExposure(object):
 		# cv2.imshow('filtered', images[0])
 		# cv2.waitKey(0)
 		# cv2.destroyAllWindows()
+		longexposure = LongExposure.longExposure(images)
 		print "Saved long exposure image!"
-		cv2.imwrite(os.path.join(rospack.get_path('StarFinder'),'le_x-2y-3t0.jpg'),LongExposure.longExposure(images))
-		return
+		cv2.imwrite(os.path.join(rospack.get_path('StarFinder'), name + '.jpg'),longexposure)
+		return longexposure
 
 if __name__ == '__main__':
 	# Data folder is 'ceiling_map'
