@@ -11,6 +11,6 @@ Progress Blog Post 1: https://docs.google.com/document/d/1fT2lGL-hj9wIi2qzROryzV
 
 MJ's YOGA: -
 
-Lydia's YOGA: -
+Lydia's YOGA: https://docs.google.com/document/d/1jd1dWplpFhv_5ADtClM6DUMWAHqDQDowbw2CzrcvJms/edit?usp=sharing
 
 Lydia final deliverables: https://github.com/Oktober13/FeatureDetector
